@@ -164,19 +164,19 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
     }
 
     private ChunkSource getChunkSource() {
-        if (this.levelHeightAccessor instanceof CubeWorldGenRegion) {
-            return ((CubeWorldGenRegion) this.levelHeightAccessor).getChunkSource();
+        if (((ProtoChunkAccess) this).getLevelHeightAccessor() instanceof CubeWorldGenRegion) {
+            return ((CubeWorldGenRegion) ((ProtoChunkAccess) this).getLevelHeightAccessor()).getChunkSource();
         } else {
-            return ((ServerLevel) this.levelHeightAccessor).getChunkSource();
+            return ((ServerLevel) ((ProtoChunkAccess) this).getLevelHeightAccessor()).getChunkSource();
         }
     }
 
     //STATUS
     @Override
     public void setStatus(ChunkStatus newStatus) {
-        this.status = newStatus;
+        super.setStatus(newStatus);
 
-        if (this.status == ChunkStatus.FEATURES) {
+        if (newStatus == ChunkStatus.FEATURES) {
             ChunkSource chunkSource = getChunkSource();
 
             for (int dx = 0; dx < IBigCube.DIAMETER_IN_SECTIONS; dx++) {
@@ -226,11 +226,6 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
     public LightSurfaceTrackerSection[] getLightHeightmaps() {
         return lightHeightmaps;
     }
-
-    @Override public ChunkStatus getCubeStatus() {
-        return this.status;
-    }
-
 
     @Override @Nullable public BlockState setBlock(BlockPos pos, BlockState state, boolean isMoving) {
         int xSection = pos.getX() & 0xF;

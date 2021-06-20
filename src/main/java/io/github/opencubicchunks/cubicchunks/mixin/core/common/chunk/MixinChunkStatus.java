@@ -284,13 +284,13 @@ public class MixinChunkStatus {
                 ((ICubeGenerator) generator).buildSurfaceAndBedrockCC(cubeWorldGenRegion, chunkAccess);
             }
 
+            cubeAccessWrapper.setNeedsExtraHeight(false);
             if (chunkGeneratorSettings.controlsStatus(ChunkStatus.CARVERS)) {
                 ((ICubeGenerator) generator).applyCubicCarvers(world.getSeed(), world.getBiomeManager(), cubeAccessWrapper, GenerationStep.Carving.AIR);
             } else {
                 generator.applyCarvers(world.getSeed(), world.getBiomeManager(), cubeAccessWrapper, GenerationStep.Carving.AIR);
             }
 
-            cubeAccessWrapper.setNeedsExtraHeight(false);
             if (chunkGeneratorSettings.controlsStatus(ChunkStatus.LIQUID_CARVERS)) {
                 ((ICubeGenerator) generator).applyCubicCarvers(world.getSeed(), world.getBiomeManager(), cubeAccessWrapper, GenerationStep.Carving.LIQUID);
             } else {

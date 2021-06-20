@@ -11,20 +11,17 @@ import io.github.opencubicchunks.cubicchunks.chunk.aquifer.CubicAquifer;
 import io.github.opencubicchunks.cubicchunks.server.CubicLevelHeightAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.WorldGenRegion;
-import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.StructureFeatureManager;
 import net.minecraft.world.level.biome.BiomeSource;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.Aquifer;
 import net.minecraft.world.level.levelgen.BaseStoneSource;
 import net.minecraft.world.level.levelgen.Beardifier;
-import net.minecraft.world.level.levelgen.BaseStoneSource;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
@@ -216,5 +213,13 @@ public abstract class MixinNoiseBasedChunkGenerator {
         if (!this.settings.get().noiseSettings().islandNoiseOverride()) {
             cir.setReturnValue(new CubicAquifer(chunkPos, this.barrierNoise, this.aquiferSourceSampler, minY * cellHeight, this.defaultFluid));
         }
+    }
+
+    @Redirect(method = "createAquifer", at = @At(value = "INVOKE", target = "Ljava/lang/Math;max(II)I"))
+    private int createNoiseAquifer(int a, int b, ChunkAccess chunk) {
+        if (!((CubicLevelHeightAccessor) chunk).isCubic()) {
+            return Math.max(a, b);
+        }
+        return b;
     }
 }

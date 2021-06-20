@@ -1,5 +1,6 @@
 package io.github.opencubicchunks.cubicchunks.chunk.carver;
 
+import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.carver.CarvingContext;
@@ -19,7 +20,7 @@ public class CubicCarvingContext extends CarvingContext {
     }
 
     @Override public int getGenDepth() {
-        return chunk.getHeight();
+        return IBigCube.DIAMETER_IN_BLOCKS;
     }
 
     public int getOriginalMinGenY() {
