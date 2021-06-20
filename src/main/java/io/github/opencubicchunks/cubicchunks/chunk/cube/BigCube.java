@@ -22,13 +22,18 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import io.github.opencubicchunks.cubicchunks.CubicChunks;
+import io.github.opencubicchunks.cubicchunks.chunk.ChunkActiveSections;
+import io.github.opencubicchunks.cubicchunks.chunk.CubeMapGetter;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.ImposterChunkPos;
+import io.github.opencubicchunks.cubicchunks.chunk.LightHeightmapGetter;
+import io.github.opencubicchunks.cubicchunks.chunk.heightmap.LightSurfaceTrackerSection;
 import io.github.opencubicchunks.cubicchunks.chunk.heightmap.SurfaceTrackerSection;
 import io.github.opencubicchunks.cubicchunks.chunk.heightmap.SurfaceTrackerWrapper;
 import io.github.opencubicchunks.cubicchunks.chunk.util.CubePos;
 import io.github.opencubicchunks.cubicchunks.mixin.access.common.ChunkSectionAccess;
 import io.github.opencubicchunks.cubicchunks.server.CubicLevelHeightAccessor;
+import io.github.opencubicchunks.cubicchunks.utils.Coords;
 import io.github.opencubicchunks.cubicchunks.utils.MathUtil;
 import io.github.opencubicchunks.cubicchunks.world.storage.CubeProtoTickList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -112,6 +117,7 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
     private final Map<StructureFeature<?>, LongSet> structuresRefences;
 
     private final Map<Heightmap.Types, SurfaceTrackerSection[]> heightmaps;
+    private final LightSurfaceTrackerSection[] lightHeightmaps = new LightSurfaceTrackerSection[4];
 
     private ChunkBiomeContainer cubeBiomeContainer;
 
@@ -189,7 +195,21 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
         generates2DChunks = ((CubicLevelHeightAccessor) worldIn).generates2DChunks();
         worldStyle = ((CubicLevelHeightAccessor) worldIn).worldStyle();
 
-//        this.gatherCapabilities();
+        if (!this.level.isClientSide) {
+            for (int xSection = 0; xSection < IBigCube.DIAMETER_IN_SECTIONS; xSection++) {
+                for (int zSection = 0; zSection < IBigCube.DIAMETER_IN_SECTIONS; zSection++) {
+
+                    ChunkPos chunkPos = this.cubePos.asChunkPos(xSection, zSection);
+                    LevelChunk chunk = this.level.getChunk(chunkPos.x, chunkPos.z);
+                    for (int ySection = 0; ySection < IBigCube.DIAMETER_IN_SECTIONS; ySection++) {
+                        LevelChunkSection section =
+                            this.sections[sectionToIndex(cubeToSection(cubePosIn.getX(), xSection), cubeToSection(cubePosIn.getY(), ySection), cubeToSection(cubePosIn.getZ(), zSection))];
+                        ((ChunkActiveSections) chunk).activeSections()
+                            .add(section == null ? new LevelChunkSection(Coords.sectionToMinBlock(cubeToSection(cubePosIn.getY(), ySection))) : section);
+                    }
+                }
+            }
+        }
     }
 
     public BigCube(Level worldIn, CubePrimer cubePrimer, @Nullable Consumer<BigCube> postLoadConsumerIn) {
@@ -220,8 +240,24 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
         this.setAllReferences(cubePrimer.getAllReferences());
 //        var4 = protoChunk.getHeightmaps().iterator();
 
+        LightSurfaceTrackerSection[] primerLightHeightmaps = cubePrimer.getLightHeightmaps();
+        for (int i = 0; i < IBigCube.DIAMETER_IN_SECTIONS * IBigCube.DIAMETER_IN_SECTIONS; i++) {
+            this.lightHeightmaps[i] = primerLightHeightmaps[i];
+            if (this.lightHeightmaps[i] == null) {
+                System.out.println("Got a null light heightmap while upgrading from CubePrimer at " + this.cubePos);
+            } else {
+                this.lightHeightmaps[i].upgradeCube(this);
+            }
+        }
+
         this.setCubeLight(cubePrimer.hasCubeLight());
         this.dirty = true;
+    }
+
+    @Override public void setLightHeightmapSection(LightSurfaceTrackerSection section, int localSectionX, int localSectionZ) {
+        int idx = localSectionX + localSectionZ * DIAMETER_IN_SECTIONS;
+
+        this.lightHeightmaps[idx] = section;
     }
 
     @Deprecated @Override public ChunkPos getPos() {
@@ -935,6 +971,21 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
 
     public void setLoaded(boolean loaded) {
         this.loaded = loaded;
+
+        if (!loaded) {
+            for (int localX = 0; localX < IBigCube.DIAMETER_IN_SECTIONS; localX++) {
+                for (int localZ = 0; localZ < IBigCube.DIAMETER_IN_SECTIONS; localZ++) {
+                    ChunkPos chunkPos1 = this.cubePos.asChunkPos(localX, localZ);
+                    LevelChunk chunk = this.level.getChunk(chunkPos1.x, chunkPos1.z);
+
+                    for (LevelChunkSection section : this.getSections()) {
+                        if (section != null) {
+                            ((ChunkActiveSections) chunk).activeSections().remove(section);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public boolean getLoaded() {
@@ -984,13 +1035,19 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
         ChunkPos pos = this.cubePos.asChunkPos();
         for (int x = 0; x < IBigCube.DIAMETER_IN_SECTIONS; x++) {
             for (int z = 0; z < IBigCube.DIAMETER_IN_SECTIONS; z++) {
-                // TODO we really, *really* shouldn't be force-loading columns here.
-                //      probably the easiest approach until we get a "columns before cubes" invariant though.
+
+                // TODO force-loading columns is questionable, until we get load order
                 LevelChunk chunk = this.level.getChunk(pos.x + x, pos.z + z);
+                ((CubeMapGetter) chunk).getCubeMap().markLoaded(this.cubePos.getY());
                 for (Map.Entry<Heightmap.Types, Heightmap> entry : chunk.getHeightmaps()) {
                     Heightmap heightmap = entry.getValue();
                     SurfaceTrackerWrapper tracker = (SurfaceTrackerWrapper) heightmap;
                     tracker.loadCube(this);
+                }
+
+                if (!this.level.isClientSide) {
+                    // TODO probably don't want to do this if the cube was already loaded as a CubePrimer
+                    ((LightHeightmapGetter) chunk).getServerLightHeightmap().loadCube(this);
                 }
             }
         }
