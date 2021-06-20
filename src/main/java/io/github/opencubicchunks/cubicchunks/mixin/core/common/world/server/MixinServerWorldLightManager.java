@@ -1,5 +1,6 @@
 package io.github.opencubicchunks.cubicchunks.mixin.core.common.world.server;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.IntSupplier;
 
@@ -125,10 +126,13 @@ public abstract class MixinServerWorldLightManager extends MixinWorldLightManage
 
             super.enableLightSources(cubePos, true);
             if (!flagIn) {
-                icube.getCubeLightSources().forEach((blockPos) -> {
+                List<BlockPos> lights = icube.getLightsRaw();
+
+                for (int i = 0; i < lights.size(); i++) {
+                    BlockPos blockPos = lights.get(i);
                     assert blockPos != null;
                     super.onBlockEmissionIncrease(blockPos, icube.getLightEmission(blockPos));
-                });
+                }
             }
 
             ((IChunkManager) this.chunkMap).releaseLightTicket(cubePos);
